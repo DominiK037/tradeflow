@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        WHY spring-boot-starter-parent:
+        Inheriting from this gives us free version management for hundreds of
+        Spring + test libraries, sensible compiler defaults, UTF-8 encoding,
+        and the spring-boot-maven-plugin pre-wired. Without it we would have
+        to manually version every Spring dependency — high noise, high error risk.
+    -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.4</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>io.tradeflow</groupId>
+    <artifactId>tradeflow</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>TradeFlow</name>
+    <description>
+        Distributed e-commerce and financial settlement engine.
+        FinTech + E-Commerce + Real-Time Communication.
+    </description>
+
+    <!--
+        MODULE ORDER MATTERS here — Maven builds in declaration order.
+        tradeflow-proto MUST come first because ledger-service and
+        order-service both depend on the generated gRPC stubs.
+        gateway-service comes last — it depends on both services being
+        resolvable in the reactor build.
+    -->
+    <modules>
+        <module>tradeflow-proto</module>
+        <module>ledger-service</module>
+        <module>order-service</module>
+        <module>gateway-service</module>
+    </modules>
+
+    <!-- ── Centralised version properties ───────────────────────────── -->
+    <properties>
+        <java.version>21</java.version>
+
+        <!-- Spring Cloud — 2023.0.x is the train compatible with Boot 3.3.x -->
+        <spring-cloud.version>2023.0.3</spring-cloud.version>
+
+        <!-- gRPC — net.devh 3.1.x supports Spring Boot 3.2/3.3 -->
+        <grpc.version>1.65.1</grpc.version>
+        <protobuf.version>3.25.5</protobuf.version>
+        <grpc-spring-boot.version>3.1.0.RELEASE</grpc-spring-boot.version>
+
+        <!-- JWT — 0.12.x is the modern JJWT API (builder-based, no deprecated methods) -->
+        <jjwt.version>0.12.5</jjwt.version>
+
+        <!-- Resilience4j — 2.x requires Spring Boot 3 -->
+        <resilience4j.version>2.2.0</resilience4j.version>
+
+        <!-- Jacoco — 0.8.12 supports Java 21 bytecode -->
+        <jacoco.version>0.8.12</jacoco.version>
+    </properties>
+
+    <!-- ── BOM imports + shared version overrides ────────────────────── -->
+    <dependencyManagement>
+        <dependencies>
+
+            <!--
+                Spring Cloud BOM — manages versions for Gateway, LoadBalancer,
+                Config, etc. Must align with Boot version — see:
+                https://spring.io/projects/spring-cloud#overview
+            -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!--
+                gRPC BOM — manages grpc-protobuf, grpc-stub, grpc-netty-shaded,
+                grpc-core etc. Avoids version mismatch between grpc artifacts
+                which causes subtle runtime failures (method not found errors).
+            -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-bom</artifactId>
+                <version>${grpc.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Our own proto module — versioned alongside the parent -->
+            <dependency>
+                <groupId>io.tradeflow</groupId>
+                <artifactId>tradeflow-proto</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Protobuf Java runtime (BOM only manages grpc artifacts) -->
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${protobuf.version}</version>
+            </dependency>
+
+            <!-- JWT — three artifacts must be on the same version -->
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+
+            <!-- net.devh gRPC Spring Boot starters — server and client are separate -->
+            <dependency>
+                <groupId>net.devh</groupId>
+                <artifactId>grpc-server-spring-boot-starter</artifactId>
+                <version>${grpc-spring-boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.devh</groupId>
+                <artifactId>grpc-client-spring-boot-starter</artifactId>
+                <version>${grpc-spring-boot.version}</version>
+            </dependency>
+
+            <!-- Resilience4j — Spring Boot 3 variant -->
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-spring-boot3</artifactId>
+                <version>${resilience4j.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!--
+        Dependencies declared here are INHERITED by every module.
+        Keep this minimal — only things every module genuinely needs.
+        spring-boot-starter-test gives JUnit 5, Mockito, AssertJ to all modules.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+
+                <!--
+                    spring-boot-maven-plugin — declared here but NOT executed here.
+                    Each service module activates it explicitly.
+                    The proto module does NOT activate it (it is not a Boot app).
+                -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                </plugin>
+
+                <!--
+                    Jacoco — also declared here but activated per service module.
+                    The check goal enforces 85% line coverage and FAILS the build
+                    if the threshold is not met. This is the CI quality gate.
+                -->
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco.version}</version>
+                    <executions>
+                        <execution>
+                            <id>prepare-agent</id>
+                            <goals>
+                                <goal>prepare-agent</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>report</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>coverage-check</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>check</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <rule>
+                                        <element>BUNDLE</element>
+                                        <limits>
+                                            <limit>
+                                                <counter>LINE</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>0.85</minimum>
+                                            </limit>
+                                        </limits>
+                                    </rule>
+                                </rules>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+
+                <!--
+                    Surefire — runs *Test.java classes (unit tests).
+                    Excludes *IT.java (integration tests) — those run under Failsafe.
+                    This separation ensures unit tests run without Docker/Testcontainers.
+                -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <includes>
+                            <include>**/*Test.java</include>
+                        </includes>
+                        <excludes>
+                            <exclude>**/*IT.java</exclude>
+                        </excludes>
+                    </configuration>
+                </plugin>
+
+                <!--
+                    Failsafe — runs *IT.java classes (integration/Testcontainers tests).
+                    Requires Docker running locally and in CI.
+                    `verify` phase runs integration-test + verify goals.
+                -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <configuration>
+                        <includes>
+                            <include>**/*IT.java</include>
+                        </includes>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>integration-test</goal>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>

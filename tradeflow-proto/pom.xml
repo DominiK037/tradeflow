@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.tradeflow</groupId>
+        <artifactId>tradeflow</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>tradeflow-proto</artifactId>
+    <name>TradeFlow Proto</name>
+    <description>
+        Protobuf contract definitions and generated gRPC stubs for TradeFlow.
+        This module is the single source of truth for all inter-service gRPC contracts.
+        Both ledger-service (server) and order-service (client) depend on this module.
+
+        WHY a dedicated proto module:
+        Keeping .proto files in one module guarantees both sides of a gRPC call
+        always compile against identical generated stubs. Placing protos inside
+        the server module would force the client to take a runtime dependency on
+        the entire server — a coupling violation.
+    </description>
+
+    <dependencies>
+
+        <!--
+            grpc-protobuf — provides the Protobuf-based marshaller that serialises
+            Java objects to the Protobuf binary wire format over HTTP/2.
+            Version managed by grpc-bom in parent.
+        -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+        </dependency>
+
+        <!--
+            grpc-stub — provides the blocking, future, and reactive stub base classes
+            that the protoc code generator extends to create our service stubs.
+        -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
+
+        <!--
+            protobuf-java — the core Protobuf runtime.
+            Required to instantiate and serialise generated message classes.
+        -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+
+        <!--
+            javax.annotation-api — provides @Generated annotation used by the
+            protoc code generator. Required at compile time only.
+            NOT provided by Java 11+ JDK (removed from javax.* namespace).
+        -->
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>1.3.2</version>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+
+        <!--
+            os-maven-plugin — detects the OS + architecture at build time
+            (e.g. osx-aarch_64 on M2 Air, linux-x86_64 on CI).
+            The protobuf-maven-plugin uses this to download the correct
+            platform-specific protoc binary. Without it, protoc would fail
+            on Apple Silicon or ARM CI runners.
+        -->
+        <extensions>
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+            </extension>
+        </extensions>
+
+        <plugins>
+            <!--
+                protobuf-maven-plugin — invokes protoc during the
+                generate-sources phase. Two goals:
+                  compile        — generates Java message classes from .proto files
+                  compile-custom — invokes the grpc-java protoc plugin to also
+                                   generate the Service stub classes (Blocking,
+                                   Future, Async variants)
+
+                WHY download protoc via Maven artifact (not system install):
+                Pinning the protoc binary version as a Maven artifact guarantees
+                every developer and every CI runner uses the identical binary.
+                A system-installed protoc at a different version silently produces
+                incompatible stubs — hard to debug, breaks in production.
+            -->
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>0.6.1</version>
+                <configuration>
+                    <protocArtifact>
+                        com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
+                    </protocArtifact>
+                    <pluginId>grpc-java</pluginId>
+                    <pluginArtifact>
+                        io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
+                    </pluginArtifact>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>compile</goal>
+                            <goal>compile-custom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+
+    </build>
+
+</project>

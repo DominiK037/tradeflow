@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "feature/**"
+      - "phase/**"
+  pull_request:
+    branches:
+      - "phase/**"
+      - main
+
+# Minimal permissions — principle of least privilege.
+# checks: write        → dorny/test-reporter annotates the PR diff
+# pull-requests: write → posts test results as PR comments
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  build-and-test:
+    name: Build, Test & Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ── 1. Checkout ───────────────────────────────────────────────────────
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Java 21 ─────────────────────────────────────────────────
+      # temurin = Eclipse Adoptium — free, production-grade, identical to
+      # what most product companies run. cache: maven caches ~/.m2 between runs.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      # ── 3. Compile all modules ────────────────────────────────────────────
+      # Root reactor build. Order: tradeflow-proto → ledger → order → gateway.
+      # protobuf-maven-plugin fires during generate-sources phase here,
+      # producing generated stub classes before service compilation starts.
+      - name: Compile
+        run: mvn clean compile --no-transfer-progress
+
+      # ── 4. Unit tests (no Docker required) ───────────────────────────────
+      # Surefire runs **/*Test.java only. These must never require Docker.
+      - name: Unit tests
+        run: mvn test --no-transfer-progress
+
+      # ── 5. Integration tests (requires Docker) ───────────────────────────
+      # Failsafe runs **/*IT.java — these use Testcontainers.
+      # GitHub-hosted ubuntu-latest runners have Docker pre-installed.
+      # `verify` = compile + test + integration-test + verify (jacoco check).
+      - name: Integration tests + Coverage gate
+        run: mvn verify --no-transfer-progress
+
+      # ── 6. Publish test results on PR ─────────────────────────────────────
+      # Reads Surefire/Failsafe XML and annotates failing tests inline
+      # on the PR diff — no need to dig through logs.
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: "**/target/surefire-reports/*.xml,**/target/failsafe-reports/*.xml"
+          reporter: java-junit
+
+      # ── 7. Upload Jacoco HTML report as artifact ──────────────────────────
+      # The jacoco:check goal (wired into verify phase) already fails the build
+      # if line coverage < 85%. This step makes the report browsable.
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-reports
+          path: "**/target/site/jacoco/"
+          retention-days: 7

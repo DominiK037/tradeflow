@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.tradeflow</groupId>
+        <artifactId>tradeflow</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>gateway-service</artifactId>
+    <name>TradeFlow Gateway Service</name>
+    <description>
+        Edge proxy, JWT issuer, rate limiter, and real-time WebSocket hub.
+
+        CRITICAL — THIS SERVICE USES THE REACTIVE STACK (Spring WebFlux), NOT MVC.
+        spring-boot-starter-web MUST NOT be added to this module.
+        Spring Cloud Gateway requires WebFlux and will fail to start if the
+        servlet stack is on the classpath alongside it.
+
+        Consequence: Security configuration uses SecurityWebFilterChain (reactive),
+        not SecurityFilterChain (servlet). Redis access uses ReactiveRedisTemplate.
+        WebSocket handlers implement WebSocketHandler (reactive).
+    </description>
+
+    <dependencies>
+
+        <!-- ── API Gateway ───────────────────────────────────────────── -->
+        <!--
+            spring-cloud-starter-gateway — the reactive reverse proxy.
+            Pulls in spring-webflux, Netty (reactive HTTP server), and
+            Spring Cloud Gateway auto-configuration.
+
+            Capabilities used in TradeFlow:
+              - Route definitions (proxy to order-service and ledger-service)
+              - Global filters (JWT validation, request logging)
+              - Redis-backed rate limiting (RequestRateLimiter filter)
+              - WebSocket proxying (built-in, no extra config)
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway</artifactId>
+        </dependency>
+
+        <!-- ── Redis (Reactive) ───────────────────────────────────────── -->
+        <!--
+            spring-boot-starter-data-redis-reactive — reactive Redis client
+            (Lettuce) required for:
+              1. Redis-backed rate limiting in Spring Cloud Gateway
+                 (RequestRateLimiterGatewayFilterFactory uses ReactiveRedisTemplate)
+              2. WebSocket session registry (userId → sessionId mapping)
+
+            WHY reactive Redis here (not the standard blocking starter):
+            Gateway runs on Netty event loops. Blocking I/O on an event loop
+            thread causes thread starvation. Lettuce's reactive client uses
+            Netty pipelines natively — zero blocking, no extra thread pool.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
+
+        <!-- ── Security ───────────────────────────────────────────────── -->
+        <!--
+            spring-boot-starter-security — on a WebFlux application, this
+            auto-configures a reactive security filter chain.
+            We will define a SecurityWebFilterChain bean (not SecurityFilterChain).
+            The JWT validation global filter reads the Authorization header,
+            validates the RSA-signed token, and populates the reactive
+            SecurityContext with the user's claims.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- JWT — same three artifacts as other services -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+        </dependency>
+
+        <!-- ── WebSocket ─────────────────────────────────────────────── -->
+        <!--
+            spring-boot-starter-websocket provides WebSocket support on the
+            MVC (servlet) stack. On WebFlux, WebSocket is handled natively
+            by spring-webflux (already on classpath via spring-cloud-starter-gateway).
+
+            We use HandlerMapping + WebSocketHandlerAdapter directly.
+            NO explicit websocket starter needed for the reactive stack.
+
+            The WebSocket handler:
+              1. Accepts browser WebSocket upgrade on /ws/notifications
+              2. Registers the session in Redis keyed by userId
+              3. Receives Kafka events and pushes them to the matching session
+        -->
+
+        <!-- ── Messaging ─────────────────────────────────────────────── -->
+        <!--
+            spring-kafka — provides KafkaConsumerFactory and @KafkaListener.
+            Gateway CONSUMES: order-events, wallet-events.
+            On each event, looks up the userId in Redis session registry,
+            then pushes the payload to the active WebSocket session.
+
+            WHY @KafkaListener on a reactive service:
+            Kafka consumers are always blocking poll loops regardless of the
+            application stack. Spring Kafka runs listeners on dedicated
+            consumer threads, never on Netty event loops. The result of the
+            listener (sending to a WebSocket session) is non-blocking reactive
+            code. This is a valid and common hybrid pattern.
+        -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- ── Observability ─────────────────────────────────────────── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- ── Validation ─────────────────────────────────────────────── -->
+        <!--
+            spring-boot-starter-validation works with WebFlux too.
+            Used for @Valid on request bodies in auth endpoints.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- ── Testing ────────────────────────────────────────────────── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            io.projectreactor:reactor-test — provides StepVerifier for testing
+            reactive streams (Mono, Flux) in gateway filters and handlers.
+        -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

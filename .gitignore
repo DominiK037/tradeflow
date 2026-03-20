@@ -1,0 +1,62 @@
+# ── Compiled output ──────────────────────────────────────────────────────────
+target/
+*.class
+*.jar
+*.war
+
+# ── Maven ────────────────────────────────────────────────────────────────────
+.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# ── IntelliJ IDEA ────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# ── VS Code ───────────────────────────────────────────────────────────────────
+.vscode/
+*.code-workspace
+
+# ── Spring Boot ──────────────────────────────────────────────────────────────
+HELP.md
+spring-shell.log
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── OS generated ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Environment & Secrets — NEVER commit these ───────────────────────────────
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+secrets/
+application-local.yml
+application-local.properties
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+# Keep docker-compose files tracked — they are not secrets
+# Ignore generated/overridden compose files
+docker-compose.override.yml
+
+# ── Protobuf generated sources ───────────────────────────────────────────────
+# Generated stubs live in target/ — already ignored above.
+# The .proto source files ARE tracked — they are the contract definitions.
+
+# ── Jacoco coverage reports ──────────────────────────────────────────────────
+**/jacoco.exec
+**/jacoco-ut.exec
+
+# ── Kubernetes local overrides ───────────────────────────────────────────────
+k8s/local/
+k8s/secrets/
+
+TRADEFLOW_SKILL.md
