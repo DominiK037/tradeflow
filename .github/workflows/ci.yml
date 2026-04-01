@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - "feature/**"
-      - "phase/**"
+      - "dev"
   pull_request:
     branches:
-      - "phase/**"
-      - main
+      - "dev"
+      - "main"
 
 # Minimal permissions — principle of least privilege.
 # checks: write        → dorny/test-reporter annotates the PR diff
