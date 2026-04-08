@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: ledger-service
+  threads:
+    virtual:
+      enabled: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+  mvc:
+    problemdetails:
+      enabled: true
+
+app:
+  security:
+    rsa:
+      public-key-location: classpath:keys/public.pem
+
+grpc:
+  server:
+    port: 9090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  pattern:
+    console: "%d{ISO8601} [%X{traceId},%X{spanId}] %-5level %logger{36} - %msg%n"
