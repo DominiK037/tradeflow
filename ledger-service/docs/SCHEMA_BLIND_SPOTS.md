@@ -61,6 +61,24 @@ ALTER TABLE accounts
 
 ---
 
+## 6. `response_body` Deserialisation — No Type Safety
+
+**Risk:** `IdempotencyKey.responseBody` is a raw `String` mapped to a `json` column.
+There is no compile-time guarantee that the stored JSON matches the expected response
+type when deserialised by `LedgerEngine`.
+
+**Why no @Converter:** response shape varies by operation — `RESERVE_FUNDS` and
+`CREDIT_ACCOUNT` produce different response objects. A JPA `@Converter` needs a single
+target type; there is none here.
+
+**Where it's handled:** `LedgerEngine` (task-1.4) — uses `ObjectMapper` to serialise
+before saving and deserialise after fetching, with an explicit target class per operation.
+
+**Status:** By design. Raw `String` entity field + `ObjectMapper` in service layer is
+the correct boundary. No entity change needed.
+
+---
+
 ## What the Schema Does Enforce
 
 | Constraint | Mechanism |
